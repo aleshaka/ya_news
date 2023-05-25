@@ -8,6 +8,7 @@ class News(models.Model):
     title = models.CharField(max_length=50)
     text = models.TextField()
     date = models.DateField(default=datetime.today)
+    # date = models.DateField(default=datetime.now().strftime('%Y-%m-%d'))
 
     class Meta:
         ordering = ('-date',)
