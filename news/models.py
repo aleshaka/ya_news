@@ -8,7 +8,6 @@ class News(models.Model):
     title = models.CharField(max_length=50)
     text = models.TextField()
     date = models.DateField(default=datetime.today)
-    # date = models.DateField(default=datetime.now().strftime('%Y-%m-%d'))
 
     class Meta:
         ordering = ('-date',)
@@ -20,10 +19,7 @@ class News(models.Model):
 
 
 class Comment(models.Model):
-    news = models.ForeignKey(
-        News,
-        on_delete=models.CASCADE
-    )
+    news = models.ForeignKey(News, on_delete=models.CASCADE)
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

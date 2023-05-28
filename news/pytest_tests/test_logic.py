@@ -1,13 +1,12 @@
 from http import HTTPStatus
 
 import pytest
+
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import User
-from django.test import Client
 from django.urls import reverse
 
-from news.forms import CommentForm
-from news.models import Comment
+from news.forms import WARNING
+from news.models import Comment, News
 
 User = get_user_model()
 
@@ -33,79 +32,78 @@ def test_authenticated_user_can_post_comment(author_client, news):
     response = author_client.post(url, data=form_data)
     assert response.status_code == HTTPStatus.FOUND
     assert Comment.objects.count() == comment_count + 1
+    comment = Comment.objects.latest('id')
+    assert comment.text == form_data['text']
+    assert comment.news == news
 
 
 @pytest.mark.django_db
-def test_comment_form_with_bad_words():
-    bad_word = 'негодяй'
-    form_data = {'text': {bad_word}}
-    form = CommentForm(data=form_data)
-
-    assert not form.is_valid()
-    assert 'text' in form.errors
-    assert form.errors['text'][0] == 'Не ругайтесь!'
+def test_create_comment_with_bad_words(author_client, news):
+    bad_word = 'по любому ты редиска'
+    response = author_client.post(
+        reverse('news:detail', args=[news.pk]), {'text': f'Это {bad_word}'}
+    )
+    assert response.status_code == HTTPStatus.OK
+    assert Comment.objects.count() == 0
+    assert WARNING.encode() in response.content
 
 
 @pytest.mark.django_db
 def test_edit_own_comment(author_client, comment):
     edit_url = reverse('news:edit', kwargs={'pk': comment.pk})
-    response = author_client.get(edit_url)
-
-    assert response.status_code == HTTPStatus.OK
-
     new_text = 'Измененный комментарий'
     data = {'text': new_text}
     edit_response = author_client.post(edit_url, data=data)
-
     assert edit_response.status_code == HTTPStatus.FOUND
-
     edited_comment = Comment.objects.get(pk=comment.pk)
     assert edited_comment.text == new_text
+    assert edited_comment.news == comment.news
+    assert edited_comment.author == comment.author
+    assert edited_comment.created == comment.created
 
 
 @pytest.mark.django_db
 def test_delete_own_comment(author_client, comment):
     assert Comment.objects.filter(pk=comment.pk).exists()
-
     delete_url = reverse('news:delete', kwargs={'pk': comment.pk})
     response = author_client.post(delete_url)
-
     assert response.status_code == HTTPStatus.FOUND
-
     assert not Comment.objects.filter(pk=comment.pk).exists()
 
 
 @pytest.mark.django_db
-def test_authenticated_user_cannot_edit_other_users_comment(author, news):
+def test_authenticated_user_cannot_edit_other_users_comment(
+    author, news, client
+):
     user = User.objects.create(username='AnotherUser')
-    client = Client()
     client.force_login(user)
-
     comment = Comment.objects.create(
         text='Комментарий',
         author=author,
         news=news,
     )
-
     edit_url = reverse('news:edit', args=[comment.pk])
     response = client.get(edit_url)
-
     assert response.status_code == HTTPStatus.NOT_FOUND
+    comment.refresh_from_db()
+    assert comment.text == 'Комментарий'
 
 
 @pytest.mark.django_db
-def test_authenticated_user_cannot_delete_other_users_comment(author, news):
+def test_authenticated_user_cannot_delete_other_users_comment(
+    author, news, client
+):
     user = User.objects.create(username='AnotherUser')
-    client = Client()
     client.force_login(user)
-
     comment = Comment.objects.create(
         text='Комментарий',
         author=author,
         news=news,
     )
-
+    initial_post_count = News.objects.count()
+    initial_posts = list(News.objects.all())
     delete_url = reverse('news:delete', args=[comment.pk])
     response = client.post(delete_url)
-
     assert response.status_code == HTTPStatus.NOT_FOUND
+    assert News.objects.count() == initial_post_count
+    assert list(News.objects.all()) == initial_posts
