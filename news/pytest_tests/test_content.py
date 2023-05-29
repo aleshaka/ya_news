@@ -1,6 +1,7 @@
 from http import HTTPStatus
 
 import pytest
+
 # не смешивай Джанго клиент и пайтест клиент
 # (isort их совмещает, может у меня настройки isort ни те)
 
@@ -26,28 +27,33 @@ def test_news_count_on_homepage(client, news):
 
 
 @pytest.mark.django_db
-def test_sorted_news(sorted_news, client):
+def test_news_list_sorted(client, recent_news):
     """
     Проверяет, что новости отсортированы по дате.
     """
-    response = client.get(reverse('news:home'))
+    url = reverse('news:home')
+    response = client.get(url)
     assert response.status_code == HTTPStatus.OK
-    news_titles = response.context['news_list'].values_list('title', flat=True)
-    sorted_titles = sorted_news.values_list('title', flat=True)
-    assert list(news_titles) == list(sorted_titles)
+    news_list = response.context['news_list']
+    news_list = list(news_list)
+    expected_news_list = list(recent_news)
+    expected_news_list.sort(key=lambda x: x.date, reverse=True)
+    assert news_list == expected_news_list
 
 
 @pytest.mark.django_db
-def test_sorted_comments(sorted_comments, news, client):
+def test_comment_list(author_client, news, comments):
     """
     Проверяет, что комментарии отсортированы по дате создания.
     """
-    response = client.get(reverse('news:detail', args=[news.pk]))
+    url = reverse('news:detail', kwargs={'pk': news.pk})
+    response = author_client.get(url)
     assert response.status_code == HTTPStatus.OK
-    comments = Comment.objects.filter(news=news)
-    sorted_comments_text = sorted_comments.values_list('text', flat=True)
-    comments_text = comments.values_list('text', flat=True)
-    assert list(comments_text) == list(sorted_comments_text)
+    comments_on_page = Comment.objects.filter(news=news)
+    assert len(comments_on_page) == len(comments)
+    sorted_comments = sorted(comments, key=lambda c: c.created)
+    for i in range(len(sorted_comments)):
+        assert comments_on_page[i] == sorted_comments[i]
 
 
 def test_comment_form_anonymous_user(client, news):
