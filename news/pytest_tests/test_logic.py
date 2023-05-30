@@ -12,6 +12,9 @@ User = get_user_model()
 
 
 def test_anonymous_user_cannot_post_comment(client, news):
+    """
+    Проверяет что анонимный пользователь не может отправить комментарий.
+    """
     comment_count = Comment.objects.count()
     form_data = {
         'text': 'Новый комментарий',
@@ -24,9 +27,13 @@ def test_anonymous_user_cannot_post_comment(client, news):
 
 @pytest.mark.django_db
 def test_authenticated_user_can_post_comment(author_client, news):
+    """
+    Проверяет что авторизованный пользователь может отправить комментарий.
+    """
     comment_count = Comment.objects.count()
     form_data = {
         'text': 'Новый комментарий',
+        'author': 'Автор'
     }
     url = reverse('news:detail', args=[news.pk])
     response = author_client.post(url, data=form_data)
@@ -35,10 +42,14 @@ def test_authenticated_user_can_post_comment(author_client, news):
     comment = Comment.objects.latest('id')
     assert comment.text == form_data['text']
     assert comment.news == news
+    assert str(comment.author) == form_data['author']
 
 
 @pytest.mark.django_db
 def test_create_comment_with_bad_words(author_client, news):
+    """
+    Проверяет комментарий на содержание запрещенных слов
+    """
     bad_word = 'по любому ты редиска'
     response = author_client.post(
         reverse('news:detail', args=[news.pk]), {'text': f'Это {bad_word}'}
@@ -50,6 +61,9 @@ def test_create_comment_with_bad_words(author_client, news):
 
 @pytest.mark.django_db
 def test_edit_own_comment(author_client, comment):
+    """
+    Проверяет что авторизованный пользователь может edit свои комментарии.
+    """
     edit_url = reverse('news:edit', kwargs={'pk': comment.pk})
     new_text = 'Измененный комментарий'
     data = {'text': new_text}
@@ -64,6 +78,9 @@ def test_edit_own_comment(author_client, comment):
 
 @pytest.mark.django_db
 def test_delete_own_comment(author_client, comment):
+    """
+    Проверяет что авторизованный пользователь может delete свои комментарии.
+    """
     assert Comment.objects.filter(pk=comment.pk).exists()
     delete_url = reverse('news:delete', kwargs={'pk': comment.pk})
     response = author_client.post(delete_url)
@@ -73,8 +90,11 @@ def test_delete_own_comment(author_client, comment):
 
 @pytest.mark.django_db
 def test_authenticated_user_cannot_edit_other_users_comment(
-    author, news, client
+        author, news, client
 ):
+    """
+    Проверяет что авторизованный пользователь не может edit чужие комментарии.
+    """
     user = User.objects.create(username='AnotherUser')
     client.force_login(user)
     comment = Comment.objects.create(
@@ -83,7 +103,8 @@ def test_authenticated_user_cannot_edit_other_users_comment(
         news=news,
     )
     edit_url = reverse('news:edit', args=[comment.pk])
-    response = client.get(edit_url)
+    data = {'text': 'Измененный комментарий'}
+    response = client.post(edit_url, data)
     assert response.status_code == HTTPStatus.NOT_FOUND
     comment.refresh_from_db()
     assert comment.text == 'Комментарий'
@@ -93,6 +114,9 @@ def test_authenticated_user_cannot_edit_other_users_comment(
 def test_authenticated_user_cannot_delete_other_users_comment(
     author, news, client
 ):
+    """
+    Проверяет что авторизованный пользователь не может del чужие комментарии.
+    """
     user = User.objects.create(username='AnotherUser')
     client.force_login(user)
     comment = Comment.objects.create(

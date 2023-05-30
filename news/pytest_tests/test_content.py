@@ -4,11 +4,10 @@ import pytest
 
 # не смешивай Джанго клиент и пайтест клиент
 # (isort их совмещает, может у меня настройки isort ни те)
-
 from django.shortcuts import reverse
 
 from news.models import Comment, News
-from yanews.settings import NEWS_COUNT_ON_HOME_PAGE
+from yanews import settings
 
 
 @pytest.mark.django_db
@@ -23,7 +22,8 @@ def test_news_count_on_homepage(client, news):
         )
     response = client.get(reverse('news:home'))
     assert response.status_code == HTTPStatus.OK
-    assert len(response.context['news_list']) <= NEWS_COUNT_ON_HOME_PAGE
+    assert len(response.context['news_list']) \
+           <= settings.NEWS_COUNT_ON_HOME_PAGE
 
 
 @pytest.mark.django_db
@@ -36,6 +36,9 @@ def test_news_list_sorted(client, recent_news):
     assert response.status_code == HTTPStatus.OK
     news_list = response.context['news_list']
     news_list = list(news_list)
+    # если не преобразовывать в лист
+    # то почему то не работает, там видимо QuerySet
+    #  assert <QuerySet [<N...я новость 3>]> == [<News: Свежа...ая новость 3>]
     expected_news_list = list(recent_news)
     expected_news_list.sort(key=lambda x: x.date, reverse=True)
     assert news_list == expected_news_list

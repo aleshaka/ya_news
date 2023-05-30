@@ -27,13 +27,6 @@ def news(author):
     return news
 
 
-# @pytest.fixture
-# def sorted_comments(news):
-#     comments = Comment.objects.filter(news=news)
-#     sorted_comments = comments.order_by('created')
-#     return sorted_comments
-
-
 @pytest.fixture
 def slug_for_args(news):
     return (news.slug,)
